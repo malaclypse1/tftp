@@ -1,10 +1,10 @@
 import socket
 import select
 import tftp
-import argparse
+import random
 import sys
 
-def txfile(ip, port, filename, mode):
+def txfile(ip, ctid, filename, mode):
     # send data packet to client
     # wait for ack of the correct block
     # send next data packet
@@ -12,11 +12,11 @@ def txfile(ip, port, filename, mode):
     # if other type of packet received send error Packet
     # wait for ack (block # should be last block received)
     
-    print("ip: {} {} file: {} mode: {}".format(ip, port,
+    print("ip: {} {} file: {} mode: {}".format(ip, ctid,
           filename, mode))
-
+    stid = random.randint(2000,65535)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((ip, port+1))
+    sock.bind((ip, stid))
 
     f = open(filename,"rb")
     opcode = 3
@@ -30,16 +30,21 @@ def txfile(ip, port, filename, mode):
         if (sys.getsizeof(data) < 512):
             done = True
         #prepend opcode and block number
-        data = (opcode.to_bytes (2,byteorder='big')
-               + block.to_bytes (2,byteorder='big')
-               + data)
+        datapack = tftp.Packet()
+        datapack.makeDATA(block,data)
+#         data = (opcode.to_bytes (2,byteorder='big')
+#                + block.to_bytes (2,byteorder='big')
+#                + data)
         #send block
         acknowledged = False
         while (not acknowledged):
-            sock.sendto(data, (ip, port))
+            sock.sendto(datapack.raw, (ip, ctid))
+            print("sending block {}".format(block))
             #wait for ack
             ackData, addr = sock.recvfrom(516)
-            ackPack = tftp.Packet(ackData)
+            ackPack = tftp.Packet()
+            ackPack.decode(ackData)
+            print(ackPack)
             if (ackPack.opcode == 4 and ackPack.block == block):
                 #ack received
                 block += 1
@@ -62,5 +67,8 @@ listenSock.bind((UDP_IP, UDP_PORT))
 while True:
     data, addr = listenSock.recvfrom(512)
     print("received from {}: {}".format(addr, data))
-    pack = tftp.Packet(data)
+    pack = tftp.Packet()
+    pack.decode(data)
     print(pack)
+    if pack.opcode == 1: # request for file
+        txfile(addr[0], addr[1], pack.filename, pack.mode)
