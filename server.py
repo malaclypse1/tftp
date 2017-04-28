@@ -28,22 +28,18 @@ def txfile(ip, ctid, filename, mode):
     sock.bind((ip, stid))
 
     f = open(filename,"rb")
-    opcode = 3
     block = 1
     done = False
     #send data until packet size < 512
     while (not done):
         #read portion of file
         data = f.read(512)
-        #if portion is smaller than 508, its the last block
+        #if portion is smaller than 512, its the last block
         if (sys.getsizeof(data) < 512):
             done = True
         #prepend opcode and block number
         datapack = tftp.Packet()
         datapack.makeDATA(block,data)
-#         data = (opcode.to_bytes (2,byteorder='big')
-#                + block.to_bytes (2,byteorder='big')
-#                + data)
         #send block
         acknowledged = False
         while (not acknowledged):
