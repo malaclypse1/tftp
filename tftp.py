@@ -14,14 +14,8 @@ class Packet:
              4:"ACK",
              5:"ERROR",
     }
-    # new Packet object needs a place to store raw bytes
-    def __init__(cls, raw=False):
-        cls.raw = raw
         
-    # raw bytes (like an rxed packet) can be added to the packet in the constructor:
-    #   p1 = tftp.Packet(rawBytes)
-    #   p1.decode()
-    # or in the decoder:
+    # raw bytes (like an rxed packet) can be added to the packet in the decoder:
     #   p1 = tftp.Packet()
     #   p1.decode(rawBytes)
     
@@ -43,56 +37,51 @@ class Packet:
             cls.errMsg, devnull = rest.decode('ascii').split('\x00',1)
         else:
             raise ValueError('Invalid opcode')
-        return cls.opcode
             
     @classmethod
     def makeRQ(cls, opcode, filename, mode):
         cls.opcode = opcode
         cls.filename = filename
         cls.mode = mode # add valid mode checking <----------
-        cls.raw = (opcode.to_bytes(2, byteorder='big')
-                   + filename
+        cls.raw = (cls.opcode.to_bytes(2, byteorder='big')
+                   + cls.filename
                    + b'\x00'
-                   + mode
+                   + cls.mode
                    + b'\x00')
-        return cls.raw
     
     @classmethod
     def makeRRQ(cls, filename, mode):
-        return makeRQ(1, filename, mode)
+        makeRQ(1, filename, mode)
     
     @classmethod
     def makeWRQ(cls, filename, mode):
-        return makeRQ(2, filename, mode)
+        makeRQ(2, filename, mode)
     
     @classmethod
     def makeDATA(cls, block, data):
         cls.opcode = 3
         cls.block = block
         cls.data = data
-        cls.raw = (opcode.to_bytes(2, byteorder='big')
-                   + block.to_bytes(2, byteorder='big')
-                   + data) # do something regarding mode netascii or octet? <-------
-        return cls.raw
+        cls.raw = (cls.opcode.to_bytes(2, byteorder='big')
+                   + cls.block.to_bytes(2, byteorder='big')
+                   + cls.data) # do something regarding mode netascii or octet? <-------
     
     @classmethod
     def makeACK(cls, block):
         cls.opcode = 4
         cls.block = block
-        cls.raw = (opcode.to_bytes(2, byteorder='big')
-                   + block.to_bytes(2, byteorder='big'))
-        return cls.raw
+        cls.raw = (cls.opcode.to_bytes(2, byteorder='big')
+                   + cls.block.to_bytes(2, byteorder='big'))
     
     @classmethod
     def makeERROR(cls, errorCode, errMsg):
         cls.opcode = 5
         cls.errorCode = errorCode
         cls.errMsg = errMsg
-        cls.raw = (opcode.to_bytes(2, byteorder='big')
-                   + errorCode.to_bytes(2, byteorder='big')
-                   + errMsg
+        cls.raw = (cls.opcode.to_bytes(2, byteorder='big')
+                   + cls.errorCode.to_bytes(2, byteorder='big')
+                   + cls.errMsg
                    + b'\x00')
-        return cls.raw
     
     @classmethod
     def __str__(cls):
