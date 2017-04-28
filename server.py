@@ -1,8 +1,17 @@
+# Simple TFTP server
+####################
+# This program will listen on port 1069 for incoming tftp requests
+# On receiving a request, it will randomly select a TID and reply
+# appropriately.
+# To have it listen on port 69, either run it as root (not recommended)
+# or forward the port
+
 import socket
 import select
 import tftp
 import random
 import sys
+import threading
 
 def txfile(ip, ctid, filename, mode):
     # send data packet to client
@@ -50,19 +59,15 @@ def txfile(ip, ctid, filename, mode):
                 block += 1
                 acknowledged = True
             #else resend
-
-# Simple TFTP server
-####################
-# This program will listen on port 69 for incoming tftp requests
-# On receiving a request, it will randomly select a TID and reply
-# appropriately
-# hand off file transfers to txfile.py or rxfile.py
+    return
 
 UDP_IP = ""
 UDP_PORT = 1069
 
 listenSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 listenSock.bind((UDP_IP, UDP_PORT))
+
+threads = []
 
 while True:
     data, addr = listenSock.recvfrom(512)
@@ -71,4 +76,8 @@ while True:
     pack.decode(data)
     print(pack)
     if pack.opcode == 1: # request for file
-        txfile(addr[0], addr[1], pack.filename, pack.mode)
+        t = threading.Thread(target=txfile,
+                             args=(addr[0], addr[1],
+                                   pack.filename, pack.mode))
+        threads.append(t)
+        t.start()
