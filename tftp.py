@@ -14,29 +14,99 @@ class Packet:
              4:"ACK",
              5:"ERROR",
     }
-
-    def __init__(self, raw):
-        self.opcode, rest = int.from_bytes(raw[:2],byteorder='big'),raw[2:]
-        if self.opcode == 1 or self.opcode == 2:
-            self.filename, self.mode, devnull = rest.decode('ascii').split('\x00',2)
-        elif self.opcode == 3:
-            self.data = rest
-        elif self.opcode == 4:
-            self.block = int.from_bytes(rest,byteorder='big')
-        elif self.opcode == 5:
-            self.errorCode,rest = int.from_bytes(rest[:2],byteorder='big'),rest[2:]
-            self.errMsg, devnull = rest.decode('ascii').split('\x00',1)
+    # new Packet object needs a place to store raw bytes
+    def __init__(cls, raw=False):
+        cls.raw = raw
+        
+    # raw bytes (like an rxed packet) can be added to the packet in the constructor:
+    #   p1 = tftp.Packet(rawBytes)
+    #   p1.decode()
+    # or in the decoder:
+    #   p1 = tftp.Packet()
+    #   p1.decode(rawBytes)
+    
+    @classmethod
+    def decode(cls, raw=False):
+        if raw:
+            cls.raw = raw
+        if not cls.raw:
+            raise ValueError('Can not decode empty Packet')
+        cls.opcode, rest = int.from_bytes(cls.raw[:2],byteorder='big'),cls.raw[2:]
+        if cls.opcode == 1 or cls.opcode == 2:
+            cls.filename, cls.mode, devnull = rest.decode('ascii').split('\x00',2)
+        elif cls.opcode == 3:
+            cls.data = rest
+        elif cls.opcode == 4:
+            cls.block = int.from_bytes(rest,byteorder='big')
+        elif cls.opcode == 5:
+            cls.errorCode,rest = int.from_bytes(rest[:2],byteorder='big'),rest[2:]
+            cls.errMsg, devnull = rest.decode('ascii').split('\x00',1)
         else:
             raise ValueError('Invalid opcode')
-
-    def __str__(self):
-        returnStr = self.opstr[self.opcode]
-        if self.opcode == 1 or self.opcode == 2:
-            returnStr += ' filename: ' + self.filename + ' mode: ' + self.mode
-        elif self.opcode == 3:
-            returnStr += ' data:\n' + self.data.decode('ascii')
-        elif self.opcode == 4:
-            returnStr += ' block #' + str(self.block)
-        elif self.opcode == 5:
-            returnStr += ' error ' + str(self.errorCode) + ': ' + self.errMsg
+        return cls.opcode
+            
+    @classmethod
+    def makeRQ(cls, opcode, filename, mode):
+        cls.opcode = opcode
+        cls.filename = filename
+        cls.mode = mode # add valid mode checking <----------
+        cls.raw = (opcode.to_bytes(2, byteorder='big')
+                   + filename
+                   + b'\x00'
+                   + mode
+                   + b'\x00')
+        return cls.raw
+    
+    @classmethod
+    def makeRRQ(cls, filename, mode):
+        return makeRQ(1, filename, mode)
+    
+    @classmethod
+    def makeWRQ(cls, filename, mode):
+        return makeRQ(2, filename, mode)
+    
+    @classmethod
+    def makeDATA(cls, block, data):
+        cls.opcode = 3
+        cls.block = block
+        cls.data = data
+        cls.raw = (opcode.to_bytes(2, byteorder='big')
+                   + block.to_bytes(2, byteorder='big')
+                   + data) # do something regarding mode netascii or octet? <-------
+        return cls.raw
+    
+    @classmethod
+    def makeACK(cls, block):
+        cls.opcode = 4
+        cls.block = block
+        cls.raw = (opcode.to_bytes(2, byteorder='big')
+                   + block.to_bytes(2, byteorder='big'))
+        return cls.raw
+    
+    @classmethod
+    def makeERROR(cls, errorCode, errMsg):
+        cls.opcode = 5
+        cls.errorCode = errorCode
+        cls.errMsg = errMsg
+        cls.raw = (opcode.to_bytes(2, byteorder='big')
+                   + errorCode.to_bytes(2, byteorder='big')
+                   + errMsg
+                   + b'\x00')
+        return cls.raw
+    
+    @classmethod
+    def __str__(cls):
+        try:
+            cls.opcode
+        except AttributeError:
+            raise AttributeError('No opcode -- packet empty or not decoded')
+        returnStr = cls.opstr[cls.opcode]
+        if cls.opcode == 1 or cls.opcode == 2:
+            returnStr += ' filename: ' + cls.filename + ' mode: ' + cls.mode
+        elif cls.opcode == 3:
+            returnStr += ' data:\n' + cls.data.decode('ascii')
+        elif cls.opcode == 4:
+            returnStr += ' block #' + str(cls.block)
+        elif cls.opcode == 5:
+            returnStr += ' error ' + str(cls.errorCode) + ': ' + cls.errMsg
         return returnStr
